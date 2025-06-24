@@ -13,19 +13,27 @@ namespace AllSoftwareTracker
             _logger = logger;
         }
         string fileName = "";
+        string existingFileHIP = "";
+        string existingFilePIP = "";
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             if (Directory.Exists(@"D:\"))
             {
-                fileName = @"D:\" + "allTracker.txt";
+                fileName = @"D:\" + "AllTracker_LogFile.txt";
+                existingFileHIP = @"D:\" + "HIP_LogFile.txt";
+                existingFilePIP = @"D:\" + "HIP_LogFile.txt";
             }
             else if (Directory.Exists(@"E:\"))
             {
-                fileName = @"E:\" + "allTracker.txt";
+                fileName = @"E:\" + "AllTracker_LogFile.txt";
+                existingFileHIP = @"E:\" + "HIP_LogFile.txt";
+                existingFilePIP = @"E:\" + "HIP_LogFile.txt";
             }
             else
             {
-                fileName = Path.Combine(Directory.GetCurrentDirectory(), "allTracker.txt");
+                fileName = Path.Combine(Directory.GetCurrentDirectory(), "AllTracker_LogFile.txt");
+                existingFileHIP = Path.Combine(Directory.GetCurrentDirectory(), "HIP_LogFile.txt");
+                existingFilePIP = Path.Combine(Directory.GetCurrentDirectory(), "HIP_LogFile.txt");
             }
             if (!File.Exists(fileName))
             {
@@ -34,7 +42,7 @@ namespace AllSoftwareTracker
 
                 }
             }
-            File.AppendAllText(fileName, "\nStart at " + DateTime.Now.ToString());
+            File.AppendAllText(fileName, "Start at " + DateTime.Now.ToString() + "\n");
             while (!stoppingToken.IsCancellationRequested)
             {
                 string processName1 = "SmartManufacturingLocal_PIP_RIP_DIP_PLC";
@@ -83,6 +91,54 @@ namespace AllSoftwareTracker
                         }
                     }
                 }
+
+
+                #region FOR HIP
+                if (File.Exists(existingFileHIP))
+                {
+                    string? lastLine = "";
+                    lastLine = File.ReadLines(existingFileHIP).LastOrDefault();
+                    if (!string.IsNullOrWhiteSpace(lastLine) && DateTime.TryParse(lastLine, out DateTime recordedDate))
+                    {
+                        if ((DateTime.Now - recordedDate).TotalMinutes > 10)
+                        {
+                            await SendWhatsAppViaCallMeBot("SmartManufacturingLocal_HIP is not running!");
+                        }
+                    }
+                    else
+                    {
+                        await SendWhatsAppViaCallMeBot("SmartManufacturingLocal_HIP is under exception!");
+                    }
+                }
+                else
+                {
+                    await SendWhatsAppViaCallMeBot("SmartManufacturingLocal_HIP's file does not find!");
+                }
+                #endregion
+
+                #region FOR PIP
+                if (File.Exists(existingFilePIP))
+                {
+                    string? lastLine = "";
+                    lastLine = File.ReadLines(existingFilePIP).LastOrDefault();
+                    if (!string.IsNullOrWhiteSpace(lastLine) && DateTime.TryParse(lastLine, out DateTime recordedDate))
+                    {
+                        if ((DateTime.Now - recordedDate).TotalMinutes > 10)
+                        {
+                            await SendWhatsAppViaCallMeBot("SmartManufacturingLocal_PIP is not running!");
+                        }
+                    }
+                    else
+                    {
+                        await SendWhatsAppViaCallMeBot("SmartManufacturingLocal_PIP is under exception!");
+                    }
+                }
+                else
+                {
+                    await SendWhatsAppViaCallMeBot("SmartManufacturingLocal_PIP's file does not find!");
+                }
+                #endregion
+
                 await Task.Delay(1800000, stoppingToken);
             }
         }
