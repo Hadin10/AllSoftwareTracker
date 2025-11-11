@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Net.Http;
-
+using Microsoft.Data.SqlClient;
 namespace AllSoftwareTracker
 {
     public class Worker : BackgroundService
@@ -13,27 +13,24 @@ namespace AllSoftwareTracker
             _logger = logger;
         }
         string fileName = "";
-        string existingFileHIP = "";
         string existingFilePIP = "";
+        string connectionString = @"Server=172.17.2.117;User Id=sa;Password=aaaaAAAA0000;Database=SmartManufacturingV2;TrustServerCertificate=True;MultipleActiveResultSets=True;";
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             if (Directory.Exists(@"D:\"))
             {
                 fileName = @"D:\" + "AllTracker_LogFile.txt";
-                existingFileHIP = @"D:\" + "HIP_LogFile.txt";
-                existingFilePIP = @"D:\" + "HIP_LogFile.txt";
+                existingFilePIP = @"D:\" + "PIP_LogFile.txt";
             }
             else if (Directory.Exists(@"E:\"))
             {
                 fileName = @"E:\" + "AllTracker_LogFile.txt";
-                existingFileHIP = @"E:\" + "HIP_LogFile.txt";
-                existingFilePIP = @"E:\" + "HIP_LogFile.txt";
+                existingFilePIP = @"E:\" + "PIP_LogFile.txt";
             }
             else
             {
                 fileName = Path.Combine(Directory.GetCurrentDirectory(), "AllTracker_LogFile.txt");
-                existingFileHIP = Path.Combine(Directory.GetCurrentDirectory(), "HIP_LogFile.txt");
-                existingFilePIP = Path.Combine(Directory.GetCurrentDirectory(), "HIP_LogFile.txt");
+                existingFilePIP = Path.Combine(Directory.GetCurrentDirectory(), "PIP_LogFile.txt");
             }
             if (!File.Exists(fileName))
             {
@@ -45,77 +42,6 @@ namespace AllSoftwareTracker
             File.AppendAllText(fileName, "Start at " + DateTime.Now.ToString() + "\n");
             while (!stoppingToken.IsCancellationRequested)
             {
-                string processName1 = "SmartManufacturingLocal_PIP_RIP_DIP_PLC";
-                var processes1 = Process.GetProcessesByName(processName1);
-
-                string processName2 = "SmartManufacturingLocal_HIP_PLC";
-                var processes2 = Process.GetProcessesByName(processName2);
-                if (processes1.Length == 0)
-                {
-                    File.AppendAllText(fileName, "\nProcess not running. " + DateTime.Now.ToString());
-                    await SendWhatsAppViaCallMeBot("SmartManufacturingLocal_PIP_RIP_DIP_PLC is not running!");
-                }
-                else
-                {
-                    foreach (var process in processes1)
-                    {
-                        if (!process.Responding)
-                        {
-                            File.AppendAllText(fileName, "\nProcess not responding. " + DateTime.Now.ToString());
-                            await SendWhatsAppViaCallMeBot("SmartManufacturingLocal_PIP_RIP_DIP_PLC is not running!");
-                        }
-                        else
-                        {
-                            File.AppendAllText(fileName, "\nProcess is running fine. " + DateTime.Now.ToString());
-                        }
-                    }
-                }
-
-                if (processes2.Length == 0)
-                {
-                    File.AppendAllText(fileName, "\nProcess not running. " + DateTime.Now.ToString());
-                    await SendWhatsAppViaCallMeBot("SmartManufacturingLocal_HIP_PLC is not running!");
-                }
-                else
-                {
-                    foreach (var process in processes2)
-                    {
-                        if (!process.Responding)
-                        {
-                            File.AppendAllText(fileName, "\nProcess not responding. " + DateTime.Now.ToString());
-                            await SendWhatsAppViaCallMeBot("SmartManufacturingLocal_HIP_PLC is not running!");
-                        }
-                        else
-                        {
-                            File.AppendAllText(fileName, "\nSmartManufacturingLocal_HIP_PLC is running fine. " + DateTime.Now.ToString());
-                        }
-                    }
-                }
-
-
-                #region FOR HIP
-                if (File.Exists(existingFileHIP))
-                {
-                    string? lastLine = "";
-                    lastLine = File.ReadLines(existingFileHIP).LastOrDefault();
-                    if (!string.IsNullOrWhiteSpace(lastLine) && DateTime.TryParse(lastLine, out DateTime recordedDate))
-                    {
-                        if ((DateTime.Now - recordedDate).TotalMinutes > 10)
-                        {
-                            await SendWhatsAppViaCallMeBot("SmartManufacturingLocal_HIP is not running!");
-                        }
-                    }
-                    else
-                    {
-                        await SendWhatsAppViaCallMeBot("SmartManufacturingLocal_HIP is under exception!");
-                    }
-                }
-                else
-                {
-                    await SendWhatsAppViaCallMeBot("SmartManufacturingLocal_HIP's file does not find!");
-                }
-                #endregion
-
                 #region FOR PIP
                 if (File.Exists(existingFilePIP))
                 {
@@ -138,8 +64,8 @@ namespace AllSoftwareTracker
                     await SendWhatsAppViaCallMeBot("SmartManufacturingLocal_PIP's file does not find!");
                 }
                 #endregion
-
-                await Task.Delay(1800000, stoppingToken);
+                var existingUsers = await LoadUsersFromDatabaseAsync();
+                await Task.Delay(180, stoppingToken);
             }
         }
 
@@ -155,6 +81,29 @@ namespace AllSoftwareTracker
                 string result = await response.Content.ReadAsStringAsync();
                 File.AppendAllText(fileName, "\nWhatsApp API response: " + result);
             }
+        }
+        private async Task<decimal> LoadUsersFromDatabaseAsync()
+        {
+            string query = "SELECT Id, StaffId, Name FROM Users where IsActive=1 and IsDelete=0";
+
+            await using (SqlConnection conn = new SqlConnection(connectionString))
+            await using (SqlCommand cmd = new SqlCommand(query, conn))
+            {
+                await conn.OpenAsync();
+                await using (SqlDataReader reader = await cmd.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        var user = new
+                        {
+                            Id = reader.GetInt64(reader.GetOrdinal("Id")),
+                            StaffId = reader.GetString(reader.GetOrdinal("StaffId")),
+                            Name = reader.GetString(reader.GetOrdinal("Name"))
+                        };
+                    }
+                }
+            }
+            return 0;
         }
     }
 }
